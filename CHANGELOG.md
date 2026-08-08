@@ -20,8 +20,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   every CI run. `.pre-commit-config.yaml` revs realigned with the pinned
   `ruff` and `black` versions so local hooks and CI cannot disagree.
 
+- Bumped `redis` 7.1.0 → 8.1.0. See below: the client's socket-timeout default
+  changed underneath the worker's blocking read, so this bump is not routine.
+
 ### Fixed
 
+- **The worker crash-looped on `redis` 8.** redis-py 8 changed the default
+  `socket_timeout` from `None` to `5` seconds — precisely the value of the
+  default `BLOCK_MS`. `read_new()` issues a blocking `XREADGROUP` that parks on
+  the socket for `BLOCK_MS` by design when the stream is idle, so the socket now
+  timed out at the same instant the block legitimately expired. Every idle poll
+  raised `redis.exceptions.TimeoutError`, killing the worker roughly every five
+  seconds; with `restart: unless-stopped` it restarted forever and delivered
+  nothing. `socket_timeout` is now set explicitly in `get_redis()`, derived from
+  `BLOCK_MS` via `Settings.socket_timeout_seconds()` so the two cannot drift —
+  the same approach already used for `claim_ttl_seconds()`.
+
+  Neither the type checker nor the test suite could see this: `fakeredis` does
+  not implement blocking `XREADGROUP`, which is exactly why the suite pins
+  `BLOCK_MS=0`. It reproduces only against a real Redis, on an idle stream.
+- `peek_dlq()` iterated the result of `xrevrange` without a `None` guard. On a
+  service whose DLQ has never been written — the healthy case — that raised
+  `TypeError` instead of returning an empty list.
 - The `worker` service reported `unhealthy` forever in both compose files, in
   every deployment, while working perfectly. Leaving the `healthcheck:` block
   out does not mean "no healthcheck" — the image's `HEALTHCHECK` is inherited,
@@ -31,9 +51,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   trains whoever is on call to ignore container health, and anything that gates
   on it (orchestrator readiness, alerting, health-keyed restart policies) had no
   usable signal for the worker. Caught by running the stack, not by the suite.
-- `redis` 7 types `ping()` as `Awaitable[bool] | bool`, since one class backs
-  both the sync and async clients. Narrowed once in `app/redis_client.ping()`
-  rather than casting at the call site.
+- `redis` 5 typed `ping()` as `Awaitable[bool] | bool`, since one class backed
+  both the sync and async clients, and that union needed narrowing at the call
+  site. `redis` 8 types the async client's `ping()` as awaitable in its own
+  right, so the narrowing cast has been dropped as redundant.
+- Tightened two spots `redis` 8's stricter stubs exposed: `enqueue_event()` now
+  states the decoded-response contract for the entry id in one place, and
+  `peek_dlq()` no longer assumes every stream field is a `str`.
 
 ## [1.0.0] — 2026-08-08
 

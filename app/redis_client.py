@@ -1,5 +1,4 @@
-from collections.abc import Awaitable
-from typing import Optional, cast
+from typing import Optional
 
 import redis.asyncio as redis
 
@@ -18,7 +17,14 @@ def get_redis() -> "redis.Redis":
     """
     global _client
     if _client is None:
-        _client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        _client = redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            # Set explicitly rather than left to the library default, which
+            # changed from None to 5s in redis-py 8 and silently capped the
+            # blocking XREADGROUP the worker's read loop depends on.
+            socket_timeout=settings.socket_timeout_seconds(),
+        )
     return _client
 
 
@@ -32,11 +38,12 @@ async def ping() -> bool:
     """
     Liveness probe for the health check.
 
-    redis-py types `ping()` as `Awaitable[bool] | bool` because one class backs
-    both the sync and async clients; on the async client it is always awaitable.
-    Narrowed once here rather than casting at every call site.
+    redis 5 typed `ping()` as `Awaitable[bool] | bool`, because one class backed
+    both the sync and async clients, and that union needed narrowing at every
+    call site. redis 8 types the async client's `ping()` as awaitable in its own
+    right, so no narrowing is needed here any more.
     """
-    return bool(await cast("Awaitable[bool]", get_redis().ping()))
+    return bool(await get_redis().ping())
 
 
 async def close_redis() -> None:

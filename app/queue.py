@@ -18,7 +18,7 @@ delivery claim below) are idempotent.
 """
 
 import json
-from typing import Any
+from typing import Any, cast
 
 from .config import settings
 from .redis_client import get_redis
@@ -50,11 +50,18 @@ async def ensure_group() -> None:
 
 async def enqueue_event(event_dict: dict) -> str:
     """Publish one normalized event. Returns the stream entry id."""
-    return await get_redis().xadd(
-        name=settings.STREAM_KEY,
-        fields={PAYLOAD_FIELD: json.dumps(event_dict, default=str)},
-        maxlen=settings.STREAM_MAXLEN,
-        approximate=True,
+    # get_redis() sets decode_responses=True, so the entry id comes back as str.
+    # The stubs cannot see that constructor argument and so type every reply as
+    # `bytes | str`; this is the one place the decoded-response contract has to
+    # be stated for the type checker.
+    return cast(
+        str,
+        await get_redis().xadd(
+            name=settings.STREAM_KEY,
+            fields={PAYLOAD_FIELD: json.dumps(event_dict, default=str)},
+            maxlen=settings.STREAM_MAXLEN,
+            approximate=True,
+        ),
     )
 
 
@@ -227,11 +234,16 @@ async def depth() -> dict[str, int]:
 
 async def peek_dlq(count: int = 20) -> list[dict]:
     """Read the most recent dead-lettered events without consuming them."""
-    entries = await get_redis().xrevrange(settings.DLQ_KEY, count=count)
+    # `or []` because xrevrange is typed as possibly returning None, which is
+    # what a DLQ that has never been written looks like -- the common case on a
+    # healthy service, and previously an unguarded iteration over None.
+    entries = await get_redis().xrevrange(settings.DLQ_KEY, count=count) or []
     out = []
     for _entry_id, fields in entries:
-        raw: str | None = fields.get(PAYLOAD_FIELD)
-        if raw is None:
+        # isinstance rather than `is not None`: with decode_responses=True this
+        # is always str, and anything else is an entry we cannot read anyway.
+        raw = (fields or {}).get(PAYLOAD_FIELD)
+        if not isinstance(raw, str):
             continue
         try:
             out.append(json.loads(raw))

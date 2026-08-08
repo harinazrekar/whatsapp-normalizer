@@ -89,6 +89,20 @@ class Settings:
         """
         return int(self.DOWNSTREAM_TIMEOUT_SECONDS + self.RETRY_BACKOFF_MAX_SECONDS) + 5
 
+    def socket_timeout_seconds(self) -> float:
+        """
+        Read timeout for the shared Redis client.
+
+        Must exceed BLOCK_MS. `read_new()` issues a blocking XREADGROUP that
+        deliberately parks on the socket for that long when the stream is idle,
+        and redis-py 8 changed the default socket_timeout from None to 5s --
+        exactly the default block. The socket then times out at the same moment
+        the block legitimately expires, raising TimeoutError on every idle poll
+        and crash-looping the worker. Derived rather than configured so the two
+        cannot drift apart.
+        """
+        return self.BLOCK_MS / 1000 + 5
+
     def validate(self) -> None:
         """
         Fail fast at startup rather than silently accepting unsigned traffic.
