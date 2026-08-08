@@ -7,7 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- Refreshed every pinned dependency to current releases, including major bumps:
+  `pytest` 8 → 9, `pytest-asyncio` 0.24 → 1.4, `pytest-cov` 5 → 7,
+  `black` 24 → 26, `ruff` 0.6 → 0.16, `mypy` 1.11 → 1.19, `pre-commit` 3 → 4,
+  `fastapi` 0.115 → 0.141, `uvicorn` 0.30 → 0.52, `redis` 5 → 7,
+  `httpx` 0.27 → 0.28, `pydantic` 2.9 → 2.13. The full suite, lint, format, and
+  type-check all pass unchanged on the new versions.
+- Bumped `actions/checkout` to v7, `actions/setup-python` to v7, and
+  `actions/upload-artifact` to v7, clearing the Node 20 deprecation warnings on
+  every CI run. `.pre-commit-config.yaml` revs realigned with the pinned
+  `ruff` and `black` versions so local hooks and CI cannot disagree.
+
+### Fixed
+
+- The test suite could not be imported under bare `pytest` — only under
+  `python -m pytest`, which happens to put the working directory on `sys.path`.
+  CI and `make test` both failed at conftest import with
+  `ModuleNotFoundError: No module named 'app'`. Fixed with `pythonpath = ["."]`.
+- `redis` 7 types `ping()` as `Awaitable[bool] | bool`, since one class backs
+  both the sync and async clients. Narrowed once in `app/redis_client.ping()`
+  rather than casting at the call site.
 
 ## [1.0.0] — 2026-08-08
 

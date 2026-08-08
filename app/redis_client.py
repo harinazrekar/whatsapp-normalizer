@@ -1,4 +1,5 @@
-from typing import Optional
+from collections.abc import Awaitable
+from typing import Optional, cast
 
 import redis.asyncio as redis
 
@@ -25,6 +26,17 @@ def set_redis(client: "redis.Redis | None") -> None:
     """Swap in a client (used by the test suite to inject fakeredis)."""
     global _client
     _client = client
+
+
+async def ping() -> bool:
+    """
+    Liveness probe for the health check.
+
+    redis-py types `ping()` as `Awaitable[bool] | bool` because one class backs
+    both the sync and async clients; on the async client it is always awaitable.
+    Narrowed once here rather than casting at every call site.
+    """
+    return bool(await cast("Awaitable[bool]", get_redis().ping()))
 
 
 async def close_redis() -> None:

@@ -15,7 +15,7 @@ from .logging_config import configure_logging, get_correlation_id, get_logger, s
 from .models import NormalizedEvent
 from .normalizer import extract_events
 from .queue import depth, enqueue_event, ensure_group
-from .redis_client import get_redis
+from .redis_client import ping as ping_redis
 from .security import SIGNATURE_HEADER, verify_signature, verify_token
 
 log = get_logger(__name__)
@@ -170,7 +170,7 @@ async def _ingest(events: list[NormalizedEvent], correlation_id: str) -> tuple[i
 @app.get("/health", summary="Liveness and Redis connectivity check", response_model=None)
 async def health() -> dict[str, str] | Response:
     try:
-        await get_redis().ping()
+        await ping_redis()
     except Exception as exc:
         metrics.redis_up.set(0)
         log.error("health_check_failed", extra={"error": str(exc)})
