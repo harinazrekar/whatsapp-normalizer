@@ -246,3 +246,37 @@ def test_shipped_defaults_satisfy_the_timing_guard():
 def test_claim_ttl_outlasts_a_full_attempt():
     s = Settings()
     assert s.claim_ttl_seconds() > s.DOWNSTREAM_TIMEOUT_SECONDS + s.RETRY_BACKOFF_MAX_SECONDS
+
+
+def test_socket_timeout_outlasts_a_blocking_read():
+    """
+    read_new() parks on a blocking XREADGROUP for BLOCK_MS whenever the stream
+    is idle. If the socket read times out first, every idle poll raises
+    TimeoutError and the worker dies -- which is precisely what redis-py 8's
+    new 5s socket_timeout default did against the 5s default BLOCK_MS.
+
+    conftest forces BLOCK_MS=0 for the suite (fakeredis has no blocking
+    XREADGROUP), so the shipped value is set explicitly here or this asserts
+    nothing. The real failure only reproduces against a live Redis, which is
+    why the relationship is pinned here rather than left to integration.
+    """
+    s = Settings()
+
+    s.BLOCK_MS = 5000  # the shipped default
+    assert s.socket_timeout_seconds() > s.BLOCK_MS / 1000
+
+    # And it has to scale, not just clear the default by luck.
+    s.BLOCK_MS = 30_000
+    assert s.socket_timeout_seconds() > s.BLOCK_MS / 1000
+
+
+def test_client_is_built_with_the_derived_socket_timeout():
+    """A derived timeout that never reached the client would not have helped."""
+    from app import redis_client
+
+    redis_client.set_redis(None)
+    try:
+        pool_kwargs = redis_client.get_redis().connection_pool.connection_kwargs
+        assert pool_kwargs.get("socket_timeout") == settings.socket_timeout_seconds()
+    finally:
+        redis_client.set_redis(None)
