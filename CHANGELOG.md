@@ -11,17 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Refreshed every pinned dependency to current releases, including major bumps:
   `pytest` 8 → 9, `pytest-asyncio` 0.24 → 1.4, `pytest-cov` 5 → 7,
-  `black` 24 → 26, `ruff` 0.6 → 0.16, `mypy` 1.11 → 1.19, `pre-commit` 3 → 4,
-  `fastapi` 0.115 → 0.141, `uvicorn` 0.30 → 0.52, `redis` 5 → 7,
-  `httpx` 0.27 → 0.28, `pydantic` 2.9 → 2.13. The full suite, lint, format, and
-  type-check all pass unchanged on the new versions.
+  `black` 24 → 26, `ruff` 0.6 → 0.16, `mypy` 1.11 → 2.3, `pre-commit` 3 → 4.6,
+  `fastapi` 0.115 → 0.141, `uvicorn` 0.30 → 0.52, `redis` 5 → 8,
+  `httpx` 0.27 → 0.28, `pydantic` 2.9 → 2.13. All are verified by the full
+  suite, lint, format, and type-check.
+
+  The `redis` major was the one that was not routine — it silently broke the
+  worker's read loop. See the crash-loop entry under Fixed.
+- Dropped the `tests.*` mypy override from `pyproject.toml`. It never applied:
+  `exclude` already skips `tests/`, and `make typecheck` only ever passes `app`.
+  `mypy` 2.3 reports unused config sections, which is how a dead block that had
+  been there since the hardening release finally surfaced.
 - Bumped `actions/checkout` to v7, `actions/setup-python` to v7, and
   `actions/upload-artifact` to v7, clearing the Node 20 deprecation warnings on
   every CI run. `.pre-commit-config.yaml` revs realigned with the pinned
   `ruff` and `black` versions so local hooks and CI cannot disagree.
-
-- Bumped `redis` 7.1.0 → 8.1.0. See below: the client's socket-timeout default
-  changed underneath the worker's blocking read, so this bump is not routine.
 
 ### Fixed
 
