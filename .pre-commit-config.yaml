@@ -1,0 +1,30 @@
+# Install once with `make hooks` (or `pre-commit install`).
+# Run against everything with `pre-commit run --all-files`.
+# Not pinned to python3.11 on purpose: the hooks run fine on any modern
+# interpreter, and the language level the tools target is set in pyproject.toml
+# (ruff target-version / black target-version), not by whatever python runs them.
+default_language_version:
+  python: python3
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: ["--fix", "--exit-non-zero-on-fix"]
+
+  - repo: https://github.com/psf/black
+    rev: 24.8.0
+    hooks:
+      - id: black

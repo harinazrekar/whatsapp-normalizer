@@ -1,0 +1,7 @@
+# Force reporters through the templates above — a bug report without the
+# version and the failing area is not actionable for this service.
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: mailto:businesswhari@gmail.com
+    about: Do NOT open a public issue for security problems. Email us privately — see SECURITY.md for the disclosure process and what to include.

@@ -1,0 +1,57 @@
+name: Feature request
+description: Suggest a capability — a new WhatsApp message type, a delivery target, an operational knob.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If you want support for a **new WhatsApp message type**, that's usually a small,
+        well-scoped change in `app/normalizer.py` (`_extract_text`) plus a test in
+        `tests/test_normalizer.py` — see CONTRIBUTING.md. PRs very welcome.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of change is this?
+      options:
+        - Support for a new WhatsApp message type
+        - New/changed field on the normalized event
+        - Delivery behaviour (retries, DLQ, batching, new downstream target)
+        - Observability (logs, metrics, tracing)
+        - Deployment / configuration
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that you can't do today? Describe the situation, not just the solution you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: What should the service do instead? For a new message type, include a sample (redacted) payload and the `text` you'd expect on the normalized event.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you tried, and why they aren't enough.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I'd be willing to open a PR for this.
+          required: false

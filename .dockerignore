@@ -1,0 +1,52 @@
+# Anything not needed to run the service is excluded, for two reasons: a smaller
+# build context means faster builds, and anything absent from the image cannot
+# leak from it. The .env exclusion is the one that matters -- secrets are
+# injected at runtime via env_file, never baked into a layer.
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Virtualenvs -- the image builds its own; a host .venv has the wrong platform
+# wheels and would silently shadow it.
+.venv/
+venv/
+env/
+
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Test and lint caches. Test files themselves are excluded too: the image is a
+# runtime artifact, and CI runs the suite from the checkout, not the image.
+tests/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# VCS and CI -- never read at runtime
+.git/
+.gitignore
+.github/
+
+# Docs and repo metadata
+*.md
+docs/
+LICENSE
+
+# Compose files would otherwise end up inside the image they describe
+docker-compose*.yml
+Caddyfile
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,62 @@
+# Caddy config for the production stack. DOMAIN and ACME_EMAIL are injected by
+# docker-compose.prod.yml; Caddy resolves {$VAR} at load time.
+#
+# Certificates are obtained and renewed automatically over ACME, which is the
+# whole reason Caddy is here: WhatsApp refuses webhook URLs whose certificate
+# does not validate, and a silently-expired cert means silently-dropped events.
+
+{
+	email {$ACME_EMAIL}
+
+	# Caddy's own admin API is unauthenticated by design and assumes a trusted
+	# loopback. Nothing here needs it at runtime, so it stays off.
+	admin off
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		# Meta only ever talks to this host over HTTPS; HSTS closes the
+		# first-request downgrade window for anything else that visits.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		# The service returns JSON only, so nothing legitimate needs to load a
+		# script, frame, or subresource from here.
+		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+		# Advertising the server version helps nobody but a scanner.
+		-Server
+	}
+
+	# /metrics is Prometheus scrape data -- queue depth, DLQ size, delivery
+	# counts. It is operational detail, not public information, so it is served
+	# only to private-range scrapers. Delete this block if you scrape from
+	# outside the host network, and put auth in front of it instead.
+	@metrics path /metrics
+	handle @metrics {
+		@public not client_ip private_ranges
+		respond @public 404
+		reverse_proxy api:8000
+	}
+
+	reverse_proxy api:8000 {
+		# The app reads the raw body for HMAC verification, so nothing may
+		# rewrite it in transit -- these headers only add client context.
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+
+		# Meta gives up on a slow webhook and retries; failing fast is better
+		# than holding a connection open past its patience.
+		transport http {
+			dial_timeout 5s
+			response_header_timeout 15s
+		}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

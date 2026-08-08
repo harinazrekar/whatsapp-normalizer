@@ -1,0 +1,72 @@
+# Local development stack. Pair it with an ngrok tunnel -- WhatsApp will only
+# call an HTTPS URL, so plain http://localhost:8000 is never a valid webhook
+# target. See docs/DEPLOYMENT.md.
+#
+# For anything internet-reachable use docker-compose.prod.yml instead: this file
+# publishes ports and mounts source, both of which are development conveniences.
+
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      # Bound to loopback so the API is reachable by ngrok on this machine but
+      # not by anything else on the LAN or a shared coffee-shop network.
+      - "127.0.0.1:8000:8000"
+    env_file: .env
+    depends_on:
+      redis:
+        # Without service_healthy the API races Redis on a cold start and the
+        # /health check fails for the first few seconds of every `up`.
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  worker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: python -m app.worker
+    # No healthcheck: the worker exposes no socket. Liveness is observable via
+    # the stream's pending-entries count, which the reclaim routine drains.
+    stop_grace_period: 30s
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    ports:
+      # Loopback only, and only in dev, so you can `redis-cli XINFO STREAM ...`
+      # while debugging. The prod file drops this mapping entirely.
+      - "127.0.0.1:6379:6379"
+    # Redis now holds the durable event stream, not a transient list, so an
+    # unflushed restart means lost events. appendonly + everysec caps the worst
+    # case at one second of writes.
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --save ""
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 5
+
+volumes:
+  redis-data:

@@ -1,0 +1,106 @@
+name: Bug report
+description: Something in the normalizer misbehaves — webhook verification, signature checks, delivery, or normalization.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing this. **Never paste real app secrets, verify tokens, access
+        tokens, or unredacted customer phone numbers.** Redact them as `<redacted>`
+        before pasting logs or payloads.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part is failing?
+      description: Pick the closest match — these fail for very different reasons.
+      options:
+        - Meta webhook verification (GET /webhook handshake never succeeds)
+        - Signature rejection (POST /webhook returns 403 on real Meta deliveries)
+        - Downstream delivery (events queue but never reach DOWNSTREAM_WEBHOOK_URL)
+        - Retry / DLQ behaviour
+        - Normalization (event shape, missing text, wrong message type)
+        - Deduplication (events delivered twice, or wrongly dropped)
+        - Deployment (Docker, compose, Caddy/TLS, ngrok)
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you expect, and what did you get instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Include the exact request if you can — e.g. the `curl` you sent, or "sent a text message from WhatsApp to the test number".
+      placeholder: |
+        1. Configured webhook URL in the Meta App Dashboard as https://...
+        2. Clicked "Verify and save"
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs (redacted)
+      description: Service logs around the failure. Redact secrets and phone numbers. This is rendered as a code block — no backticks needed.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: payload
+    attributes:
+      label: Webhook payload (redacted)
+      description: The `entry -> changes -> value` payload, if the bug is about normalization or dedup.
+      render: json
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release tag, or `git rev-parse --short HEAD` if you're running from a branch.
+      placeholder: "v1.0.0 / a1b2c3d"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: how-run
+    attributes:
+      label: How are you running it?
+      options:
+        - docker compose (local)
+        - docker compose (production, behind Caddy/nginx)
+        - uvicorn directly (local dev)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment details
+      description: Python version, OS, Redis version, and how the webhook URL is exposed (ngrok, real domain, other tunnel).
+      placeholder: "Python 3.11.9, Ubuntu 22.04, Redis 7, ngrok tunnel"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked the README troubleshooting section and existing issues.
+          required: true
+        - label: I have removed all secrets, tokens and personal data from everything pasted above.
+          required: true

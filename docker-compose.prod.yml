@@ -1,0 +1,163 @@
+# Production stack: Caddy terminates TLS on a real domain, the API and worker
+# stay on an internal network, and Redis publishes no host port at all.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Requires DOMAIN and ACME_EMAIL in .env (see .env.example / docs/DEPLOYMENT.md).
+# WhatsApp requires a publicly-resolvable HTTPS URL with a valid certificate, so
+# 80 and 443 must be reachable from the internet for the ACME challenge to pass.
+
+x-logging: &default-logging
+  # Left unbounded, a chatty webhook endpoint will fill the host disk with JSON
+  # logs and take the box down long before anything else does.
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env, e.g. wa.example.com}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env for Let's Encrypt expiry notices}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # caddy-data holds the issued certificates and ACME account key. Losing it
+      # means re-issuing on every deploy, which will hit Let's Encrypt rate
+      # limits; caddy-config holds the autosaved JSON config.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - edge
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+
+  api:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Without this, uvicorn only trusts 127.0.0.1 for X-Forwarded-For. Caddy
+      # reaches the API from a bridge address, so its XFF header was ignored and
+      # every request -- Meta's and everyone else's -- shared ONE rate-limit
+      # bucket keyed on Caddy's container IP. 120 junk requests a minute from
+      # anyone would then 429 Meta's real deliveries.
+      #
+      # "*" is safe here specifically because the API publishes no host port:
+      # nothing but Caddy can reach it, and Caddy overwrites XFF with the true
+      # remote address (see Caddyfile), so the header cannot be spoofed.
+      FORWARDED_ALLOW_IPS: "*"
+    # No `ports`: the only way in is through Caddy.
+    expose:
+      - "8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    networks:
+      - edge
+      - internal
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 512M
+        reservations:
+          memory: 128M
+
+  worker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    command: python -m app.worker
+    depends_on:
+      redis:
+        condition: service_healthy
+    # Long enough for the worker to finish the event it is holding and XACK it
+    # before Docker escalates to SIGKILL; a kill mid-delivery is survivable
+    # (the entry stays pending and gets reclaimed) but redelivers needlessly.
+    stop_grace_period: 30s
+    networks:
+      # `internal` reaches Redis but has no route off the host, and the worker's
+      # whole job is POSTing to DOWNSTREAM_WEBHOOK_URL. It needs egress too, on a
+      # network Redis is not attached to.
+      - internal
+      - egress
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 512M
+        reservations:
+          memory: 128M
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    # Deliberately no `ports` block. An exposed Redis with no password is the
+    # single most reliable way to lose a box on the public internet.
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --save ""
+      --maxmemory 384mb
+      --maxmemory-policy noeviction
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 5
+    networks:
+      - internal
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          # Kept above the Redis maxmemory setting so the AOF rewrite fork has
+          # headroom and the container is not OOM-killed mid-rewrite.
+          memory: 768M
+
+networks:
+  # Split so Redis is unreachable from the TLS-terminating container: a Caddy
+  # compromise still cannot touch the event stream directly.
+  edge:
+  internal:
+    internal: true
+  # Outbound-only path for downstream delivery. Nothing listens on it.
+  egress:
+
+volumes:
+  redis-data:
+  caddy-data:
+  caddy-config:

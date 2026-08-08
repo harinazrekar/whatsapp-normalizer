@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    # Release tags must build too -- a green tag is what the CHANGELOG points at.
+    tags: ["v*"]
+  pull_request:
+
+# One run per ref: pushing again to the same branch/PR cancels the older run
+# rather than burning runners on a diff nobody is looking at any more.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: nothing here publishes, comments, or writes to the repo.
+permissions:
+  contents: read
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  lint:
+    name: Lint (ruff + black)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      # Deliberately not `make lint`: that target also runs mypy, which has its
+      # own job here so a type error and a format error report separately.
+      - name: ruff check
+        run: ruff check app tests
+
+      - name: black --check
+        run: black --check app tests
+
+  typecheck:
+    name: Type check (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: mypy
+        run: make typecheck
+
+  test:
+    name: Test (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      # No Redis service container: the suite runs against fakeredis in-process.
+      # No secrets either: tests/conftest.py sets WHATSAPP_VERIFY_TOKEN and
+      # WHATSAPP_APP_SECRET (via os.environ.setdefault) before app.config is
+      # imported, so startup validation already passes on a bare runner.
+      - name: pytest
+        run: pytest --cov=app --cov-report=term-missing --cov-report=xml
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          {
+            echo "## Coverage — Python ${{ matrix.python-version }}"
+            echo
+            if coverage report --format=markdown 2>/dev/null; then
+              :
+            else
+              echo '```'
+              coverage report || echo "No coverage data produced."
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage.xml
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-py${{ matrix.python-version }}
+          path: coverage.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Build only -- this proves the image assembles and the dependency set
+      # resolves; running it would need Redis and real credentials.
+      - name: docker build
+        run: docker build --tag whatsapp-normalizer:ci .
