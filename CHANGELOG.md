@@ -22,10 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- The test suite could not be imported under bare `pytest` — only under
-  `python -m pytest`, which happens to put the working directory on `sys.path`.
-  CI and `make test` both failed at conftest import with
-  `ModuleNotFoundError: No module named 'app'`. Fixed with `pythonpath = ["."]`.
 - `redis` 7 types `ping()` as `Awaitable[bool] | bool`, since one class backs
   both the sync and async clients. Narrowed once in `app/redis_client.ping()`
   rather than casting at the call site.
@@ -34,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 The hardening release. `0.1.0` was a working proof-of-concept; this is the
 version intended to be run in front of real customer messages.
+
+### Fixed at the tag
+
+- The test suite could not be imported under bare `pytest` — only under
+  `python -m pytest`, which happens to put the working directory on `sys.path`.
+  CI and `make test` both failed at conftest import with
+  `ModuleNotFoundError: No module named 'app'`. Fixed with `pythonpath = ["."]`.
 
 ### Added
 
