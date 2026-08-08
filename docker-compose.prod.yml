@@ -98,6 +98,12 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    # Must be disabled explicitly, not just left out. The image carries a
+    # HEALTHCHECK that probes the API's /health over HTTP, and the worker binds
+    # no port -- inheriting it marks a healthy worker unhealthy forever, which
+    # in turn teaches whoever is on call to ignore the one signal that matters.
+    healthcheck:
+      disable: true
     # Long enough for the worker to finish the event it is holding and XACK it
     # before Docker escalates to SIGKILL; a kill mid-delivery is survivable
     # (the entry stays pending and gets reclaimed) but redelivers needlessly.

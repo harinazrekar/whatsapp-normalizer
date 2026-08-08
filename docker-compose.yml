@@ -40,8 +40,14 @@ services:
       redis:
         condition: service_healthy
     command: python -m app.worker
-    # No healthcheck: the worker exposes no socket. Liveness is observable via
-    # the stream's pending-entries count, which the reclaim routine drains.
+    # The worker exposes no socket, so the image's HEALTHCHECK -- an HTTP probe
+    # of the API's /health -- can never pass here. Omitting this block does NOT
+    # mean "no healthcheck": the Dockerfile's is inherited, and the worker then
+    # reads as unhealthy forever while working perfectly. It has to be disabled
+    # explicitly. Liveness is observable via the stream's pending-entries count,
+    # which the reclaim routine drains.
+    healthcheck:
+      disable: true
     stop_grace_period: 30s
 
   redis:

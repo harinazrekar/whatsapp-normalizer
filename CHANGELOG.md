@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The `worker` service reported `unhealthy` forever in both compose files, in
+  every deployment, while working perfectly. Leaving the `healthcheck:` block
+  out does not mean "no healthcheck" — the image's `HEALTHCHECK` is inherited,
+  and that one probes the API's `/health` over HTTP while the worker binds no
+  port. Disabled explicitly with `healthcheck: disable: true`. The cost of the
+  old behaviour was not cosmetic: a service permanently stuck in a failing state
+  trains whoever is on call to ignore container health, and anything that gates
+  on it (orchestrator readiness, alerting, health-keyed restart policies) had no
+  usable signal for the worker. Caught by running the stack, not by the suite.
 - `redis` 7 types `ping()` as `Awaitable[bool] | bool`, since one class backs
   both the sync and async clients. Narrowed once in `app/redis_client.ping()`
   rather than casting at the call site.
