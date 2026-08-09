@@ -248,35 +248,44 @@ def test_claim_ttl_outlasts_a_full_attempt():
     assert s.claim_ttl_seconds() > s.DOWNSTREAM_TIMEOUT_SECONDS + s.RETRY_BACKOFF_MAX_SECONDS
 
 
-def test_socket_timeout_outlasts_a_blocking_read():
+@pytest.mark.parametrize("block_ms", [0, 1, 1000, 5000, 30_000, 300_000])
+def test_socket_timeout_outlasts_a_blocking_read(block_ms):
     """
     read_new() parks on a blocking XREADGROUP for BLOCK_MS whenever the stream
     is idle. If the socket read times out first, every idle poll raises
     TimeoutError and the worker dies -- which is precisely what redis-py 8's
     new 5s socket_timeout default did against the 5s default BLOCK_MS.
 
-    conftest forces BLOCK_MS=0 for the suite (fakeredis has no blocking
-    XREADGROUP), so the shipped value is set explicitly here or this asserts
-    nothing. The real failure only reproduces against a live Redis, which is
-    why the relationship is pinned here rather than left to integration.
+    This is a PROXY, not coverage of the real failure. The blocking path itself
+    is untestable here: fakeredis has no blocking XREADGROUP, which is why
+    conftest pins BLOCK_MS=0 for the whole suite, and the crash only reproduces
+    against a live Redis on an idle stream. What is pinned instead is the
+    invariant the fix rests on -- the socket must always outlast the block --
+    swept across the range BLOCK_MS could plausibly be configured to, so a
+    future formula cannot clear the shipped default by luck alone.
     """
     s = Settings()
+    s.BLOCK_MS = block_ms
 
-    s.BLOCK_MS = 5000  # the shipped default
-    assert s.socket_timeout_seconds() > s.BLOCK_MS / 1000
-
-    # And it has to scale, not just clear the default by luck.
-    s.BLOCK_MS = 30_000
     assert s.socket_timeout_seconds() > s.BLOCK_MS / 1000
 
 
 def test_client_is_built_with_the_derived_socket_timeout():
-    """A derived timeout that never reached the client would not have helped."""
+    """
+    A derived timeout that never reached the client would not have helped.
+
+    The regression being guarded is a silent one: drop the constructor argument
+    and redis-py substitutes its own 5s default, so the client still builds and
+    every test still passes. Asserting the value landed in the pool -- and that
+    it is not merely inherited -- is the only place that omission shows up.
+    """
     from app import redis_client
 
     redis_client.set_redis(None)
     try:
         pool_kwargs = redis_client.get_redis().connection_pool.connection_kwargs
-        assert pool_kwargs.get("socket_timeout") == settings.socket_timeout_seconds()
+        socket_timeout = pool_kwargs.get("socket_timeout")
+        assert socket_timeout == settings.socket_timeout_seconds()
+        assert socket_timeout > settings.BLOCK_MS / 1000
     finally:
         redis_client.set_redis(None)

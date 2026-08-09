@@ -52,6 +52,14 @@ curl -s localhost:8000/health
 `api` reports healthy only once it can talk to Redis, so a healthy `api` means
 the whole chain is up.
 
+`worker` shows no health status, by design. It runs the same image as `api`, and
+that image's `HEALTHCHECK` probes the API's `/health` over HTTP — but the worker
+binds no port, so the probe can never pass. Leaving the `healthcheck:` block out
+does not disable it; the inherited one still runs and marks a perfectly healthy
+worker unhealthy forever. Both compose files therefore set
+`healthcheck: disable: true` on the worker. Judge it by `/stats` instead —
+`in_flight` moving and `queued` draining.
+
 ### 3. Open the tunnel
 
 In a second terminal:
@@ -233,4 +241,6 @@ somewhere durable before relying on them for an incident more than a day old.
 | Every delivery returns 403 | `WHATSAPP_APP_SECRET` doesn't match the app sending the webhook — check you copied it from the same app, not a sibling test app. |
 | Caddy never gets a certificate | DNS not resolving to this host yet, or port 80 blocked upstream (cloud security group, not just the host firewall). |
 | `api` container stuck unhealthy | It can't reach Redis. `docker compose logs redis`, and confirm `REDIS_URL` uses the service name `redis`, not `localhost`. |
+| `worker` container reads `unhealthy` | Not a worker fault. It inherits the image's `HEALTHCHECK`, an HTTP probe of the API's `/health`, and binds no port of its own. Both compose files disable it with `healthcheck: disable: true`; if you still see this, you are running an older compose file. |
+| `worker` restarts every ~5s, delivers nothing | The Redis socket read timeout is at or below `BLOCK_MS`, so the blocking `XREADGROUP` on an idle stream raises `TimeoutError` instead of returning empty. `get_redis()` derives it from `Settings.socket_timeout_seconds()` (`BLOCK_MS / 1000 + 5`) — check nothing is overriding `socket_timeout`. |
 | Service exits immediately at boot | Config validation refused to start insecurely — the log line names the offending variable. |
