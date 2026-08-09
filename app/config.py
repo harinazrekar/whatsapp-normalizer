@@ -107,6 +107,13 @@ class Settings:
     # so a sustained outage does not become a hot spin.
     REDIS_ERROR_BACKOFF_SECONDS: float = float(os.getenv("REDIS_ERROR_BACKOFF_SECONDS", "5"))
 
+    # Port the worker serves its own /metrics on. Prometheus counters are
+    # process-local: delivery, retry, DLQ and reclaim counts all live in the
+    # worker, and without a target of its own they were incremented into a
+    # registry nobody could ever scrape. Serving them here also gives the worker
+    # the liveness signal it otherwise lacks, since it binds no other socket.
+    WORKER_METRICS_PORT: int = int(os.getenv("WORKER_METRICS_PORT", "9100"))
+
     def socket_timeout_seconds(self) -> float:
         """
         Read timeout for the shared Redis client.

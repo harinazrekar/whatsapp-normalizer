@@ -40,14 +40,28 @@ services:
       redis:
         condition: service_healthy
     command: python -m app.worker
-    # The worker exposes no socket, so the image's HEALTHCHECK -- an HTTP probe
-    # of the API's /health -- can never pass here. Omitting this block does NOT
-    # mean "no healthcheck": the Dockerfile's is inherited, and the worker then
-    # reads as unhealthy forever while working perfectly. It has to be disabled
-    # explicitly. Liveness is observable via the stream's pending-entries count,
-    # which the reclaim routine drains.
+    ports:
+      # The worker's own Prometheus registry. Its delivery, retry, DLQ and
+      # reclaim counters live in this process and are not visible on the API's
+      # /metrics, which serves a different registry.
+      - "127.0.0.1:9100:9100"
+    # The image's HEALTHCHECK probes the API's /health on port 8000, which this
+    # process does not serve -- inheriting it made the worker read `unhealthy`
+    # forever while working perfectly. Replaced rather than merely disabled:
+    # now that the metrics server binds a socket, the worker has a real liveness
+    # signal instead of none at all.
     healthcheck:
-      disable: true
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9100/metrics', timeout=4).status == 200 else 1)",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
     stop_grace_period: 30s
 
   redis:

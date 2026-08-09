@@ -59,6 +59,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   trains whoever is on call to ignore container health, and anything that gates
   on it (orchestrator readiness, alerting, health-keyed restart policies) had no
   usable signal for the worker. Caught by running the stack, not by the suite.
+- **Half the metrics could never be scraped.** Prometheus counters are
+  process-local, and `wa_deliveries_total`, `wa_retries_total`,
+  `wa_dead_lettered_total`, `wa_reclaimed_total`, `wa_redis_errors_total` and
+  `wa_delivery_duration_seconds` are all incremented in the worker — which
+  exposed no HTTP endpoint at all. `metrics.py` said "scrape both targets", but
+  the second target did not exist, so every one of those series read a permanent
+  zero. The README's advice to alert on delivery failures described an alert that
+  could never fire. The worker now serves its own registry on
+  `WORKER_METRICS_PORT` (9100). Found by running the stack and noticing
+  `wa_queue_dead_lettered 1` next to `wa_dead_lettered_total 0`.
+- **The worker had no liveness signal.** Because it bound no socket, the image's
+  HTTP healthcheck could not work and was disabled outright — so a dead worker
+  was invisible, and the only symptom was in-flight entries quietly ceasing to
+  move. Now that it serves metrics it binds a port, so both compose files give it
+  a real healthcheck against `:9100/metrics` instead of none at all.
+- The worker's registry also carries the queue gauges, which only the API was
+  setting — so the worker advertised `wa_redis_up 0` and a zero queue depth while
+  Redis was healthy and busy. Two targets disagreeing about one series is worse
+  than one target staying silent: an alert on `wa_redis_up == 0` would have fired
+  off the worker forever. The worker now refreshes them each loop.
 - **The worker could still be killed by a slow Redis.** The earlier
   `socket_timeout` fix restored enough headroom for the blocking read, but
   redis-py 8 applies that finite timeout to *every* command, and `from_url`
