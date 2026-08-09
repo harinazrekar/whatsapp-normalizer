@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Licence changed from MIT to [PolyForm Noncommercial 1.0.0](LICENSE).**
+  Noncommercial use stays free — personal projects, study, research, and
+  charitable, educational, public-research and government use all qualify under
+  the licence regardless of funding. Commercial use, including running it
+  internally for a company with nothing resold, now requires a separate licence.
+
+  This does not and cannot apply retroactively. The `v1.0.0` release and every
+  commit published before this change went out under MIT, and anyone who
+  received a copy under those terms keeps them for that copy, permanently. The
+  change binds releases from here on.
+
+  Note that PolyForm Noncommercial is **source-available, not open source** —
+  the OSI definition forbids restricting the field of use, which is precisely
+  what a noncommercial clause does. The repo no longer describes itself as open
+  source anywhere, including in the artwork.
+
 - Refreshed every pinned dependency to current releases, including major bumps:
   `pytest` 8 → 9, `pytest-asyncio` 0.24 → 1.4, `pytest-cov` 5 → 7,
   `black` 24 → 26, `ruff` 0.6 → 0.16, `mypy` 1.11 → 2.3, `pre-commit` 3 → 4.6,

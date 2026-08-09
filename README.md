@@ -10,7 +10,7 @@ It verifies Meta's signature, flattens every message and status shape into one s
 
 <!-- Badges stay on one source line: inside a centered div, GitHub turns a newline
      into a <br> and they stack into a column instead of a row. -->
-[![CI](https://github.com/harinazrekar/whatsapp-normalizer/actions/workflows/ci.yml/badge.svg)](https://github.com/harinazrekar/whatsapp-normalizer/actions/workflows/ci.yml) [![Tests](https://img.shields.io/badge/tests-197%20passing-2ea043.svg)](#testing-and-development) [![Coverage](https://img.shields.io/badge/coverage-98%25-2ea043.svg)](#testing-and-development) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/) [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Typed: mypy](https://img.shields.io/badge/typed-mypy-blue.svg)](https://mypy-lang.org/)
+[![CI](https://github.com/harinazrekar/whatsapp-normalizer/actions/workflows/ci.yml/badge.svg)](https://github.com/harinazrekar/whatsapp-normalizer/actions/workflows/ci.yml) [![Tests](https://img.shields.io/badge/tests-197%20passing-2ea043.svg)](#testing-and-development) [![Coverage](https://img.shields.io/badge/coverage-98%25-2ea043.svg)](#testing-and-development) [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue.svg)](LICENSE) [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/) [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Typed: mypy](https://img.shields.io/badge/typed-mypy-blue.svg)](https://mypy-lang.org/)
 
 [Why this exists](#why-this-exists) · [Architecture](#architecture) · [Quickstart](#quickstart) · [Meta setup](#connecting-a-meta-developer-app) · [Configuration](#configuration) · [API](#api-reference) · [Operations](#operations)
 
@@ -964,4 +964,10 @@ Security issues: **do not** open a public issue. See [`SECURITY.md`](SECURITY.md
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+**[PolyForm Noncommercial 1.0.0](LICENSE)** — free for any noncommercial purpose, and not free for commercial ones.
+
+Read, fork, modify, self-host, run it in a side project, teach from it, publish research with it. Charities, schools, public research bodies and government institutions count as noncommercial under the licence regardless of how they are funded. Everything in [`docs/recording/`](docs/recording) is there so you can verify the claims rather than trust them.
+
+Running it for the benefit of a company — including internally, on your own WhatsApp integration, with nothing resold — is a commercial purpose and is **not** covered. That use needs a separate licence: open an issue or reach me through [deviaisolutions.vercel.app](https://deviaisolutions.vercel.app). Commercial licences are granted, and the conversation is short.
+
+Two honest notes. This is **source-available, not open source** — the OSI definition requires no restriction on field of use, and a noncommercial clause is exactly that restriction, so the term does not apply here and is not used anywhere in this repo. And versions published under MIT before 2026-08-09 stay MIT forever for anyone who received them; a licence change binds new releases, it cannot be applied retroactively to copies already handed out.

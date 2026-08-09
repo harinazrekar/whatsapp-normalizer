@@ -5,8 +5,17 @@ webhook that Meta calls with real customer messages, so the bar for anything
 touching `/webhook`, signature verification, or the queue is deliberately high.
 Everything else — new message types, docs, tooling — is easy to land.
 
+This project is licensed under [PolyForm Noncommercial 1.0.0](LICENSE), which is
+source-available rather than open source: noncommercial use is free, commercial
+use needs a separate licence from me.
+
+That has a consequence worth stating plainly before you spend time on a patch.
 By contributing you agree that your contribution is licensed under the same
-license as this project (see `LICENSE`).
+terms, **and** you grant me the right to license your contribution commercially
+as part of this project. Without that grant I could not offer commercial
+licences to anyone, since the codebase would have owners who had not agreed to
+it. If that trade is not one you want to make, say so in the issue first and we
+will find another way — a bug report with a failing test is valuable on its own.
 
 ## Setting up a dev environment
 
