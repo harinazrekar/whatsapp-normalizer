@@ -89,6 +89,24 @@ class Settings:
         """
         return int(self.DOWNSTREAM_TIMEOUT_SECONDS + self.RETRY_BACKOFF_MAX_SECONDS) + 5
 
+    # Read timeout for ordinary, non-blocking commands. Kept independent of
+    # BLOCK_MS: the API never issues a blocking command and must not inherit a
+    # worker tuning knob (see redis_client.get_blocking_redis).
+    REDIS_SOCKET_TIMEOUT_SECONDS: float = float(os.getenv("REDIS_SOCKET_TIMEOUT_SECONDS", "5"))
+    REDIS_CONNECT_TIMEOUT_SECONDS: float = float(os.getenv("REDIS_CONNECT_TIMEOUT_SECONDS", "5"))
+
+    # redis-py 8 applies a finite socket timeout to every command, so a single
+    # slow reply now raises instead of blocking. Retries ride out the brief
+    # stalls (AOF rewrite forks, memory pressure) that used to pass unnoticed.
+    REDIS_RETRIES: int = int(os.getenv("REDIS_RETRIES", "3"))
+    REDIS_HEALTH_CHECK_INTERVAL_SECONDS: int = int(
+        os.getenv("REDIS_HEALTH_CHECK_INTERVAL_SECONDS", "30")
+    )
+
+    # How long the worker loop pauses after a Redis error before trying again,
+    # so a sustained outage does not become a hot spin.
+    REDIS_ERROR_BACKOFF_SECONDS: float = float(os.getenv("REDIS_ERROR_BACKOFF_SECONDS", "5"))
+
     def socket_timeout_seconds(self) -> float:
         """
         Read timeout for the shared Redis client.

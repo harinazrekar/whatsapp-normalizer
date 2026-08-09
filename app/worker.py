@@ -27,6 +27,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
+from redis.exceptions import RedisError
 
 from . import metrics
 from .config import settings
@@ -224,19 +225,33 @@ async def run() -> None:
 
     async with httpx.AsyncClient(timeout=settings.DOWNSTREAM_TIMEOUT_SECONDS) as client:
         while not _shutdown.is_set():
-            # Adopt anything a dead worker left pending before taking new work.
-            reclaimed, reclaim_cursor = await reclaim_stale(CONSUMER_NAME, reclaim_cursor)
-            if reclaimed:
-                metrics.reclaimed.inc(len(reclaimed))
-                log.info("entries_reclaimed", extra={"count": len(reclaimed)})
-            await process_batch(reclaimed, client)
+            try:
+                # Adopt anything a dead worker left pending before taking new work.
+                reclaimed, reclaim_cursor = await reclaim_stale(CONSUMER_NAME, reclaim_cursor)
+                if reclaimed:
+                    metrics.reclaimed.inc(len(reclaimed))
+                    log.info("entries_reclaimed", extra={"count": len(reclaimed)})
+                await process_batch(reclaimed, client)
 
-            if _shutdown.is_set():
-                break
+                if _shutdown.is_set():
+                    break
 
-            # Blocks up to BLOCK_MS, which bounds how long shutdown waits.
-            batch = await read_new(CONSUMER_NAME)
-            await process_batch(batch, client)
+                # Blocks up to BLOCK_MS, which bounds how long shutdown waits.
+                batch = await read_new(CONSUMER_NAME)
+                await process_batch(batch, client)
+            except RedisError as exc:
+                # Redis is unreachable or slow. Letting this propagate would exit
+                # the process, and `restart: unless-stopped` would bring it
+                # straight back into the same failure -- a restart loop that
+                # delivers nothing, which is exactly the shape of the redis-py 8
+                # socket-timeout bug. Ride it out instead: the entries are
+                # durable in the stream, so there is nothing to lose by waiting.
+                metrics.redis_errors.inc()
+                log.error(
+                    "redis_error_in_worker_loop",
+                    extra={"consumer": CONSUMER_NAME, "error": f"{type(exc).__name__}: {exc}"},
+                )
+                await asyncio.sleep(settings.REDIS_ERROR_BACKOFF_SECONDS)
 
     log.info("worker_stopped", extra={"consumer": CONSUMER_NAME})
 
