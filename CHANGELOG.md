@@ -36,16 +36,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   timed out at the same instant the block legitimately expired. Every idle poll
   raised `redis.exceptions.TimeoutError`, killing the worker roughly every five
   seconds; with `restart: unless-stopped` it restarted forever and delivered
-  nothing. `socket_timeout` is now set explicitly in `get_redis()`, derived from
-  `BLOCK_MS` via `Settings.socket_timeout_seconds()` so the two cannot drift —
-  the same approach already used for `claim_ttl_seconds()`.
+  nothing. `socket_timeout` is now set explicitly, derived from `BLOCK_MS` via
+  `Settings.socket_timeout_seconds()` so the two cannot drift — the same approach
+  already used for `claim_ttl_seconds()` — and applied to the dedicated
+  `get_blocking_redis()` pool that issues the blocking read.
 
   Neither the type checker nor the test suite could see this: `fakeredis` does
   not implement blocking `XREADGROUP`, which is exactly why the suite pins
   `BLOCK_MS=0`. It reproduces only against a real Redis, on an idle stream.
-- `peek_dlq()` iterated the result of `xrevrange` without a `None` guard. On a
-  service whose DLQ has never been written — the healthy case — that raised
-  `TypeError` instead of returning an empty list.
+- Hardened `peek_dlq()` against a `None` from `xrevrange`. This is a typing
+  accommodation, not a fixed runtime bug: `XREVRANGE` on a missing key returns
+  an empty array, never nil, so the healthy never-written-DLQ case always worked.
+  `redis` 8 types the reply `StreamRangeResponse | None`, and the guard is what
+  satisfies that. (An earlier version of this entry claimed a real crash here;
+  it was wrong, and the probe that disproved it is in the test suite.)
 - The `worker` service reported `unhealthy` forever in both compose files, in
   every deployment, while working perfectly. Leaving the `healthcheck:` block
   out does not mean "no healthcheck" — the image's `HEALTHCHECK` is inherited,
@@ -55,6 +59,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   trains whoever is on call to ignore container health, and anything that gates
   on it (orchestrator readiness, alerting, health-keyed restart policies) had no
   usable signal for the worker. Caught by running the stack, not by the suite.
+- **The worker could still be killed by a slow Redis.** The earlier
+  `socket_timeout` fix restored enough headroom for the blocking read, but
+  redis-py 8 applies that finite timeout to *every* command, and `from_url`
+  supplies no retries at all — it builds the connection pool before
+  `Redis.__init__` can forward its retry default, so the connection falls
+  through to `Retry(NoBackoff(), 0)`. A single slow reply (an AOF rewrite fork,
+  memory pressure) therefore raised straight out of `reclaim_stale()` or
+  `read_new()`, neither of which the run loop guarded, exiting the process.
+  `restart: unless-stopped` then returned it to the same stalled Redis: a
+  restart loop that delivers nothing — the same shape as the bug above, one
+  layer up. Both clients now configure `REDIS_RETRIES` with exponential jittered
+  backoff, an explicit `socket_connect_timeout`, and a `health_check_interval`;
+  the run loop catches `RedisError`, counts it as `wa_redis_errors_total`, and
+  waits `REDIS_ERROR_BACKOFF_SECONDS` instead of exiting. Non-Redis exceptions
+  still propagate, so a genuine bug is not swallowed.
+- **The API inherited a worker-only tuning knob.** One shared client meant the
+  API's read timeout was derived from `BLOCK_MS`, despite the API never issuing
+  a blocking command. Raising `BLOCK_MS` to reduce idle polling would silently
+  stretch how long a stalled Redis could hold a webhook request — long enough to
+  fill uvicorn's request slots and starve `/health` — with no visible connection
+  between the two settings. `get_blocking_redis()` is now a separate pool used
+  only by `read_new()`; ordinary commands use `REDIS_SOCKET_TIMEOUT_SECONDS`.
+  The API process never builds the blocking pool at all.
 - `redis` 5 typed `ping()` as `Awaitable[bool] | bool`, since one class backed
   both the sync and async clients, and that union needed narrowing at the call
   site. `redis` 8 types the async client's `ping()` as awaitable in its own

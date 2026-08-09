@@ -338,6 +338,8 @@ make up          # docker compose up -d --build
 make ps          # api and redis should both read "healthy"
 ```
 
+`worker` deliberately reports no health status at all. It binds no port, so the image's `HEALTHCHECK` — an HTTP probe of the API's `/health` — can never pass there; both compose files set `healthcheck: disable: true` on it. A worker with no status is the correct status. Its liveness is visible in `/stats` instead: `in_flight` moving and `queued` draining.
+
 Verify:
 
 ```bash
@@ -520,8 +522,10 @@ The in-flight claim TTL is **derived, not configurable**: `Settings.claim_ttl_se
 | `STREAM_MAXLEN` | `100000` | Approximate cap on stream length (`XADD MAXLEN ~`). |
 | `DLQ_MAXLEN` | `10000` | Approximate cap on the DLQ. Left uncapped, a downstream that stays down eventually consumes the Redis memory the ingest path needs — and with `noeviction` set in production, `XADD` on `POST /webhook` then starts failing. |
 | `BATCH_SIZE` | `10` | Entries claimed per `XREADGROUP` / `XAUTOCLAIM` call. |
-| `BLOCK_MS` | `5000` | How long `XREADGROUP` blocks when the stream is empty. Also bounds shutdown latency — SIGTERM is noticed at most this long after it's sent. `0` disables blocking. |
+| `BLOCK_MS` | `5000` | How long `XREADGROUP` blocks when the stream is empty. Also bounds shutdown latency — SIGTERM is noticed at most this long after it's sent. `0` disables blocking. The Redis client's socket read timeout is derived from this — see below. |
 | `CLAIM_MIN_IDLE_MS` | `120000` | Idle time after which a pending entry is assumed to belong to a dead worker and is reclaimed. **Startup aborts** unless this exceeds `DOWNSTREAM_TIMEOUT_SECONDS + RETRY_BACKOFF_MAX_SECONDS` (70s by default) — otherwise a still-running attempt gets reclaimed by a second worker and the downstream sees the event twice. Raise `DOWNSTREAM_TIMEOUT_SECONDS` and you must raise this too. |
+
+The Redis socket read timeout is likewise **derived, not configurable**: `Settings.socket_timeout_seconds()` returns `BLOCK_MS / 1000 + 5` (10s by default), and `get_redis()` passes it explicitly. It has to exceed `BLOCK_MS`, because `read_new()` issues a blocking `XREADGROUP` that parks on the socket for exactly that long whenever the stream is idle — which, on a quiet service, is most of the time. redis-py 8 changed the default `socket_timeout` from `None` to `5` seconds, precisely the default `BLOCK_MS`: the socket then timed out at the same instant the block legitimately expired, so every idle poll raised `TimeoutError` and killed the worker. Raising `BLOCK_MS` carries the socket timeout up with it, which is the point of deriving it rather than exposing a second knob for someone to forget.
 
 ### Logging
 
@@ -585,7 +589,7 @@ An unrecognised payload shape is **not** an error: unknown structures yield zero
 ```
 
 - **200** — Redis responded to `PING`.
-- **503** — `{"status": "degraded", "redis": "unreachable"}`. Deliberately not a 200: a load balancer must be able to pull this instance out of rotation, and it cannot do that if an unreachable Redis still reads as healthy. Both compose files and the Dockerfile use this endpoint as their healthcheck, and `depends_on: service_healthy` chains off it.
+- **503** — `{"status": "degraded", "redis": "unreachable"}`. Deliberately not a 200: a load balancer must be able to pull this instance out of rotation, and it cannot do that if an unreachable Redis still reads as healthy. The Dockerfile's `HEALTHCHECK` probes this endpoint, and `depends_on: service_healthy` chains off it. It applies to the `api` service only: the worker inherits the same image but binds no port, so both compose files disable the inherited check on it explicitly rather than leaving it to fail forever.
 
 ### `GET /stats`
 
@@ -763,6 +767,12 @@ Check `curl -s localhost:8000/stats`. Rising `queued` with `in_flight` at zero m
 
 If the worker log says `no_downstream_configured`, `DOWNSTREAM_WEBHOOK_URL` is unset. That is a legitimate mode (events are acked and discarded after normalization), but it is not what you want if you expected forwarding.
 
+**The worker restarts every few seconds and delivers nothing.**
+`docker compose logs worker` shows `redis.exceptions.TimeoutError` out of the read loop on a roughly five-second cadence, on an idle stream, with `restart: unless-stopped` dutifully bringing it back each time. The socket read timeout is at or below `BLOCK_MS`, so the blocking `XREADGROUP` that `read_new()` parks on gets cut off at the same moment the block was going to expire on its own — a normal idle poll raises instead of returning an empty batch. This is what redis-py 8's default `socket_timeout` of 5s did against the default `BLOCK_MS=5000`. The client now sets `socket_timeout` explicitly from `Settings.socket_timeout_seconds()` (`BLOCK_MS / 1000 + 5`), so if you see this on a fork, something is overriding that value rather than deriving it. Note that the test suite cannot catch this: `fakeredis` has no blocking `XREADGROUP`, which is why the suite pins `BLOCK_MS=0` — it reproduces only against a real Redis.
+
+**The `worker` container reads `unhealthy` in `docker compose ps`.**
+Expected on any stack that predates the fix, and it means nothing about the worker. The worker inherits the image's `HEALTHCHECK`, which curls the API's `/health` over HTTP — but the worker binds no port, so the probe fails forever while the worker delivers perfectly. Omitting the `healthcheck:` block does *not* opt out; the inherited one still runs. Both compose files now carry `healthcheck: disable: true` on the worker, so it reports no status at all. If yours still reports unhealthy, you are running an older compose file. Judge worker liveness by `/stats` — `in_flight` moving, `queued` draining — or by `wa_deliveries_total`.
+
 **The service exits immediately at startup.**
 Config validation refused to boot. The log line names the offending variable — usually `WHATSAPP_VERIFY_TOKEN` still set to `change-me`, or `WHATSAPP_APP_SECRET` empty while `REQUIRE_SIGNATURE` is true. This is intended behaviour: an insecure deploy should fail loudly at boot rather than quietly at 3am.
 
@@ -792,16 +802,17 @@ make test          # pytest --cov=app --cov-report=term-missing
 make test-fast     # no coverage
 ```
 
-175 tests across six files, 97% statement/branch coverage of `app/`:
+190 tests across seven files, 97% statement/branch coverage of `app/`:
 
 | File | Tests | Covers |
 | --- | --- | --- |
-| `tests/test_security.py` | 30 | Signature computation and verification, non-ASCII and latin-1 header values, body-sensitivity, missing/malformed headers, the GET handshake, startup config validation including the `CLAIM_MIN_IDLE_MS` relationship. |
+| `tests/test_security.py` | 37 | Signature computation and verification, non-ASCII and latin-1 header values, body-sensitivity, missing/malformed headers, the GET handshake, startup config validation including the `CLAIM_MIN_IDLE_MS` relationship and the derived socket timeout outlasting `BLOCK_MS`. |
 | `tests/test_normalizer.py` | 63 | Every `_extract_text` branch (text, button, interactive button/list reply, media captions, location), timestamp coercion, structural edge cases, multi-entry ordering. |
-| `tests/test_queue.py` | 23 | Group creation idempotency, round-tripping, pending-list semantics, ack, reclaim, the three `begin_delivery()` outcomes, claim-vs-marker TTLs, stream and DLQ trimming, disjoint `queued`/`in_flight`, malformed entries. |
+| `tests/test_queue.py` | 25 | Group creation idempotency, round-tripping, pending-list semantics, ack, reclaim, the three `begin_delivery()` outcomes, claim-vs-marker TTLs, stream and DLQ trimming, disjoint `queued`/`in_flight`, malformed and empty DLQ entries. |
 | `tests/test_worker.py` | 21 | Happy path, crash-after-POST and crash-before-POST, a live claim blocking a concurrent reclaimer, transport errors including a malformed downstream URL, retry/backoff growth and capping, DLQ placement, concurrency, graceful shutdown, downstream-URL redaction. |
 | `tests/test_observability.py` | 21 | JSON and console formatters, correlation-ID propagation, `/health` 200 and 503, `/metrics` contents, `/stats` fields. |
 | `tests/test_api.py` | 17 | Dedup across requests, batching, malformed shapes, rate limiting, the `503` on an unavailable Redis, the Redis client factory, OpenAPI route coverage. |
+| `tests/test_deployment_config.py` | 6 | Both compose files parsed as data: the worker disables the inherited healthcheck, the API keeps a real one, and nothing chains `depends_on: service_healthy` off the worker. |
 
 Per-module coverage:
 
@@ -815,7 +826,7 @@ Per-module coverage:
 | `app/main.py` | 98% |
 | `app/queue.py` | 98% |
 | `app/logging_config.py` | 97% |
-| `app/redis_client.py` | 94% |
+| `app/redis_client.py` | 95% |
 | `app/worker.py` | 94% |
 | `app/security.py` | 87% |
 | **Total** | **97%** |
