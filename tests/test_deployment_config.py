@@ -28,17 +28,36 @@ def load_compose(filename: str) -> dict:
 
 
 @pytest.mark.parametrize("filename", COMPOSE_FILES)
-def test_worker_disables_the_inherited_healthcheck(filename):
+def test_worker_does_not_inherit_the_images_healthcheck(filename):
     """
-    `disable: true` explicitly -- an absent block inherits the image's probe.
-
-    Every deployment shares one image, so this has to hold in both files or the
-    environment that was missed is the one that reports a permanently failing
-    service and trains whoever is on call to ignore container health.
+    The image's HEALTHCHECK probes the API's /health on 8000, which the worker
+    does not serve. Omitting a `healthcheck:` block does NOT opt out -- the
+    image's is inherited, and the worker then reads `unhealthy` forever while
+    delivering perfectly, which teaches whoever is on call to ignore container
+    health. It must be overridden explicitly.
     """
     worker = load_compose(filename)["services"]["worker"]
+    healthcheck = worker.get("healthcheck")
 
-    assert worker.get("healthcheck") == {"disable": True}
+    assert healthcheck is not None, "worker would inherit the image's HTTP probe"
+    assert "8000" not in " ".join(map(str, healthcheck.get("test", [])))
+
+
+@pytest.mark.parametrize("filename", COMPOSE_FILES)
+def test_worker_healthcheck_probes_its_own_metrics_port(filename):
+    """
+    Once the worker serves its own Prometheus registry it binds a socket, so it
+    can have a real liveness signal rather than none at all. A worker that dies
+    is otherwise invisible: it publishes nothing, and the only symptom is
+    in-flight entries quietly stopping.
+    """
+    from app.config import settings
+
+    worker = load_compose(filename)["services"]["worker"]
+    probe = " ".join(map(str, worker["healthcheck"]["test"]))
+
+    assert worker["healthcheck"].get("disable") is not True
+    assert str(settings.WORKER_METRICS_PORT) in probe
 
 
 @pytest.mark.parametrize("filename", COMPOSE_FILES)

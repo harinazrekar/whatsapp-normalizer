@@ -27,6 +27,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
+from prometheus_client import start_http_server
 from redis.exceptions import RedisError
 
 from . import metrics
@@ -41,6 +42,7 @@ from .queue import (
     begin_delivery,
     complete_delivery,
     dead_letter,
+    depth,
     enqueue_event,
     ensure_group,
     read_new,
@@ -207,9 +209,34 @@ async def process_batch(entries: list[Entry], client: httpx.AsyncClient) -> None
             )
 
 
+def start_metrics_server() -> None:
+    """
+    Expose the worker's own Prometheus registry.
+
+    Counters are process-local. Delivery, retry, dead-letter, reclaim and Redis
+    error counts are all incremented here, and until this existed there was no
+    target to scrape them from -- the API's /metrics reports its own registry, so
+    those series read a permanent zero no matter what the worker did. An alert on
+    delivery failures could never have fired.
+
+    It doubles as the worker's liveness probe: the process binds no other socket,
+    which is why the image's HTTP healthcheck had to be disabled outright.
+    """
+    try:
+        start_http_server(settings.WORKER_METRICS_PORT, registry=metrics.REGISTRY)
+        log.info("worker_metrics_listening", extra={"port": settings.WORKER_METRICS_PORT})
+    except OSError as exc:
+        # A busy port must not stop the worker delivering events.
+        log.error(
+            "worker_metrics_unavailable",
+            extra={"port": settings.WORKER_METRICS_PORT, "error": str(exc)},
+        )
+
+
 async def run() -> None:
     configure_logging()
     settings.validate()
+    start_metrics_server()
     await ensure_group()
 
     log.info(
@@ -222,6 +249,22 @@ async def run() -> None:
     )
 
     reclaim_cursor = "0-0"
+
+    async def refresh_gauges() -> None:
+        """
+        Keep the queue gauges truthful on the worker's own target.
+
+        They live in the registry this process now exposes, and nothing here was
+        setting them -- so the worker advertised `wa_redis_up 0` and a zero queue
+        depth while Redis was healthy and busy. Two targets disagreeing about the
+        same series is worse than one target not reporting it: an alert on
+        `wa_redis_up == 0` would fire off the worker forever.
+        """
+        counts = await depth()
+        metrics.queue_depth.set(counts["queued"])
+        metrics.queue_in_flight.set(counts["in_flight"])
+        metrics.queue_dead_lettered.set(counts["dead_lettered"])
+        metrics.redis_up.set(1)
 
     async with httpx.AsyncClient(timeout=settings.DOWNSTREAM_TIMEOUT_SECONDS) as client:
         while not _shutdown.is_set():
@@ -239,6 +282,8 @@ async def run() -> None:
                 # Blocks up to BLOCK_MS, which bounds how long shutdown waits.
                 batch = await read_new(CONSUMER_NAME)
                 await process_batch(batch, client)
+
+                await refresh_gauges()
             except RedisError as exc:
                 # Redis is unreachable or slow. Letting this propagate would exit
                 # the process, and `restart: unless-stopped` would bring it
@@ -247,6 +292,7 @@ async def run() -> None:
                 # socket-timeout bug. Ride it out instead: the entries are
                 # durable in the stream, so there is nothing to lose by waiting.
                 metrics.redis_errors.inc()
+                metrics.redis_up.set(0)
                 log.error(
                     "redis_error_in_worker_loop",
                     extra={"consumer": CONSUMER_NAME, "error": f"{type(exc).__name__}: {exc}"},
