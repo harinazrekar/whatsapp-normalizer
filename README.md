@@ -1,12 +1,32 @@
+<div align="center">
+
+<img src="docs/media/banner.png" alt="whatsapp-normalizer — 0 events lost, 197 tests, 98% statement coverage" width="100%">
+
 # WhatsApp Webhook Normalizer
 
-A hardened ingestion service for the WhatsApp Cloud API: it verifies Meta's signature, flattens every message and status shape into one schema, drops redeliveries, and forwards events to your backend with at-least-once delivery.
+**A hardened ingestion service for the WhatsApp Cloud API.**
 
-[![CI](https://github.com/harinazrekar/whatsapp-normalizer/actions/workflows/ci.yml/badge.svg)](https://github.com/harinazrekar/whatsapp-normalizer/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Typed: mypy](https://img.shields.io/badge/typed-mypy-blue.svg)](https://mypy-lang.org/)
+It verifies Meta's signature, flattens every message and status shape into one schema,<br>drops redeliveries, and forwards events to your backend with at-least-once delivery.
+
+<!-- Badges stay on one source line: inside a centered div, GitHub turns a newline
+     into a <br> and they stack into a column instead of a row. -->
+[![CI](https://github.com/harinazrekar/whatsapp-normalizer/actions/workflows/ci.yml/badge.svg)](https://github.com/harinazrekar/whatsapp-normalizer/actions/workflows/ci.yml) [![Tests](https://img.shields.io/badge/tests-197%20passing-2ea043.svg)](#testing-and-development) [![Coverage](https://img.shields.io/badge/coverage-98%25-2ea043.svg)](#testing-and-development) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/) [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Typed: mypy](https://img.shields.io/badge/typed-mypy-blue.svg)](https://mypy-lang.org/)
+
+[Why this exists](#why-this-exists) · [Architecture](#architecture) · [Quickstart](#quickstart) · [Meta setup](#connecting-a-meta-developer-app) · [Configuration](#configuration) · [API](#api-reference) · [Operations](#operations)
+
+</div>
+
+---
+
+## Kill it mid-delivery. Nothing is lost.
+
+<div align="center">
+
+<img src="docs/media/demo.gif" alt="A worker is killed with SIGKILL while a webhook event is in flight; another worker reclaims the pending entry from the Redis stream and delivers it 22 seconds later" width="100%">
+
+</div>
+
+That is not an animation of an idea. A real stack was running, a real worker was killed with `docker kill -s KILL` while an event was mid-POST, and the entry was reclaimed and delivered **22 seconds later**. Every timestamp, status code and message id you can read in the frame came out of that run — the raw logs are in [`docs/recording/`](docs/recording), and [the recording](#the-recording) below walks through the whole thing.
 
 ---
 
@@ -23,6 +43,65 @@ The WhatsApp Cloud API webhook is deceptively hostile. Four things about it brea
 **The payload is unsigned unless you check it.** The webhook URL is not a secret; it appears in the App Dashboard, in DNS, in certificate transparency logs. Meta signs each delivery with `X-Hub-Signature-256`, but nothing forces you to verify it. Skip that check and anyone who finds the URL can inject arbitrary "customer messages" into your pipeline.
 
 This service is the boring layer that handles all four, so the code you actually care about receives one predictable JSON shape, exactly once, from a queue.
+
+---
+
+## The recording
+
+A live stack was driven through the problems above — forged requests, a redelivery, and a worker dying mid-flight — and everything it printed was captured. These are frames from that run, in order.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/media/signed.png" alt="A signed webhook delivery is accepted and queued in 9ms, after two forged requests are rejected"></td>
+<td width="50%"><img src="docs/media/killed.png" alt="The delivery worker is killed with SIGKILL mid-POST; the pipeline leg to the downstream system breaks and one entry is left pending"></td>
+</tr>
+<tr>
+<td><b>Two forged requests rejected, the signed one queued in 9ms.</b> The webhook answers Meta before any delivery is attempted.</td>
+<td><b><code>docker kill -s KILL</code> lands mid-POST.</b> Nothing acknowledged the event. <code>XPENDING</code> shows one entry stranded.</td>
+</tr>
+<tr>
+<td><img src="docs/media/intact.png" alt="A second worker reclaims the pending entry and delivers it; nothing was lost"></td>
+<td><img src="docs/media/proof.png" alt="Result panel: 197 tests passing, 98 percent statement coverage, 0 events lost, 22 seconds to recover from kill -9"></td>
+</tr>
+<tr>
+<td><b>A live worker adopts the entry via <code>XAUTOCLAIM</code></b> and delivers it 22 seconds after the kill, with no operator involved.</td>
+<td><b>Every figure traces to a file.</b> None of these numbers were typed in by hand.</td>
+</tr>
+</table>
+
+<p align="center"><a href="docs/media/recording.mp4"><b>▶ Watch the full 47-second recording</b></a> &nbsp;·&nbsp; 1920×1080, silent, 6.3 MB</p>
+
+<!--
+  The link above opens GitHub's file viewer, which plays the mp4. To get a native
+  inline player in this README instead, drag docs/media/recording.mp4 into a new
+  issue comment on this repo, copy the github.com/user-attachments/assets/... URL
+  GitHub hands back, and paste it on its own line here. That URL scheme is the only
+  one GitHub renders as a <video>; repo-relative and raw.githubusercontent paths
+  are not rendered.
+-->
+
+**Provenance.** The raw capture is committed under [`docs/recording/`](docs/recording): both services' JSON logs, both Prometheus scrapes, [`received.jsonl`](docs/recording/received.jsonl) with every delivery the downstream actually saw, and [`results.json`](docs/recording/results.json) with every request and response. The recovery figure is quoted as a ceiling, not a measurement: container logs are second-resolution, so kill → delivered lands in a ~1s window and 22s is the top of it.
+
+<details>
+<summary>Reproduce it yourself</summary>
+
+The two scripts that produced the capture are committed next to their output. `capture.py` hardcodes the secrets it signs with, so the stack has to be brought up with the matching values:
+
+```bash
+cat > .env <<'EOF'
+WHATSAPP_APP_SECRET=capture-app-secret-7b41d0e3a95c
+WHATSAPP_VERIFY_TOKEN=devi-capture-verify-2f9c
+DOWNSTREAM_WEBHOOK_URL=http://host.docker.internal:8080/hook
+EOF
+
+python3 docs/recording/catcher.py 8080 &   # the downstream your events land in
+docker compose up -d --build
+python3 docs/recording/capture.py          # rewrites the JSON in docs/recording/
+```
+
+`capture.py` runs the handshake, replays a forged and an unsigned request, sends one signed event, sends the same `message_id` again, then kills the worker with `SIGKILL` while it is genuinely mid-POST — `catcher.py` holds that connection open for two seconds so the kill lands in the window where the request has arrived but the worker has not yet learned the outcome. It then polls until the downstream sees the redelivery.
+
+</details>
 
 ---
 
@@ -863,6 +942,8 @@ whatsapp-normalizer/
 │   └── redis_client.py     Lazily-built shared client (swappable in tests)
 ├── tests/                  fakeredis-backed suite, no external services
 ├── docs/DEPLOYMENT.md      ngrok vs. Caddy, DNS, TLS, operational notes
+├── docs/recording/         The captured run: logs, metrics, results.json, capture scripts
+├── docs/media/             Frames and the 47s recording used at the top of this file
 ├── docker-compose.yml      Local dev stack
 ├── docker-compose.prod.yml Caddy + segmented networks + resource limits
 ├── Caddyfile               TLS, security headers, private-only /metrics

@@ -1,0 +1,80 @@
+{
+  "handshake_ok": {
+    "status": 200,
+    "body": "1158201444",
+    "ms": 34.2
+  },
+  "handshake_bad_token": {
+    "status": 403,
+    "body": "{\"detail\":\"Verification failed\"}",
+    "ms": 5.5
+  },
+  "unsigned": {
+    "status": 403,
+    "body": "{\"detail\":\"Invalid or missing signature\"}",
+    "ms": 9.8
+  },
+  "bad_signature": {
+    "status": 403,
+    "body": "{\"detail\":\"Invalid or missing signature\"}",
+    "ms": 3.8
+  },
+  "signed": {
+    "status": 200,
+    "body": "{\"received\":1,\"queued\":1,\"duplicates\":0}",
+    "ms": 9.2
+  },
+  "signature_header": "sha256=b71a16124f6cc46ba12fa70f81dd5e4069854f5f3cb736047e750d768224668a",
+  "duplicate": {
+    "status": 200,
+    "body": "{\"received\":1,\"queued\":0,\"duplicates\":1}",
+    "ms": 11.3
+  },
+  "catcher_after_duplicate": {
+    "total": 1,
+    "distinct_message_ids": 1,
+    "by_path": {
+      "/hook": 1
+    }
+  },
+  "kill_ingest": {
+    "status": 200,
+    "body": "{\"received\":1,\"queued\":1,\"duplicates\":0}",
+    "ms": 5.6
+  },
+  "killed_at": 1786262035.8605812,
+  "catcher_after_kill": {
+    "total": 2,
+    "distinct_message_ids": 2,
+    "by_path": {
+      "/hook": 2
+    }
+  },
+  "xpending_after_kill": "1\n1786262034652-0\n1786262034652-0\n3068301df161-1\n1",
+  "catcher_after_recovery": {
+    "catcher": {
+      "total": 3,
+      "distinct_message_ids": 2,
+      "by_path": {
+        "/hook": 3
+      }
+    },
+    "depth": {
+      "queued": 0,
+      "in_flight": 0,
+      "dead_lettered": 0,
+      "dedup_hit_rate": 0.3333
+    }
+  },
+  "recovery_seconds": 23.0,
+  "stats": {
+    "queued": 0,
+    "in_flight": 0,
+    "dead_lettered": 0,
+    "dedup_hit_rate": 0.3333
+  },
+  "health": {
+    "status": "ok",
+    "redis": "ok"
+  }
+}

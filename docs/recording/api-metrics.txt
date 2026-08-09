@@ -1,0 +1,80 @@
+# HELP wa_events_received_total Normalized events extracted from inbound webhook deliveries.
+# TYPE wa_events_received_total counter
+wa_events_received_total{event_type="message"} 3.0
+# HELP wa_events_received_created Normalized events extracted from inbound webhook deliveries.
+# TYPE wa_events_received_created gauge
+wa_events_received_created{event_type="message"} 1.7862620296199622e+09
+# HELP wa_events_queued_total Events published to the Redis Stream.
+# TYPE wa_events_queued_total counter
+wa_events_queued_total{event_type="message"} 2.0
+# HELP wa_events_queued_created Events published to the Redis Stream.
+# TYPE wa_events_queued_created gauge
+wa_events_queued_created{event_type="message"} 1.78626202962407e+09
+# HELP wa_events_duplicate_total Deliveries dropped because the message_id was already seen.
+# TYPE wa_events_duplicate_total counter
+wa_events_duplicate_total{event_type="message"} 1.0
+# HELP wa_events_duplicate_created Deliveries dropped because the message_id was already seen.
+# TYPE wa_events_duplicate_created gauge
+wa_events_duplicate_created{event_type="message"} 1.786262032638706e+09
+# HELP wa_webhook_requests_total Inbound webhook requests by outcome.
+# TYPE wa_webhook_requests_total counter
+wa_webhook_requests_total{outcome="bad_signature"} 2.0
+wa_webhook_requests_total{outcome="accepted"} 3.0
+# HELP wa_webhook_requests_created Inbound webhook requests by outcome.
+# TYPE wa_webhook_requests_created gauge
+wa_webhook_requests_created{outcome="bad_signature"} 1.7862620296118598e+09
+wa_webhook_requests_created{outcome="accepted"} 1.7862620296242726e+09
+# HELP wa_deliveries_total Downstream delivery attempts by outcome.
+# TYPE wa_deliveries_total counter
+# HELP wa_delivery_duration_seconds Wall time of a downstream POST.
+# TYPE wa_delivery_duration_seconds histogram
+wa_delivery_duration_seconds_bucket{le="0.05"} 0.0
+wa_delivery_duration_seconds_bucket{le="0.1"} 0.0
+wa_delivery_duration_seconds_bucket{le="0.25"} 0.0
+wa_delivery_duration_seconds_bucket{le="0.5"} 0.0
+wa_delivery_duration_seconds_bucket{le="1.0"} 0.0
+wa_delivery_duration_seconds_bucket{le="2.5"} 0.0
+wa_delivery_duration_seconds_bucket{le="5.0"} 0.0
+wa_delivery_duration_seconds_bucket{le="10.0"} 0.0
+wa_delivery_duration_seconds_bucket{le="+Inf"} 0.0
+wa_delivery_duration_seconds_count 0.0
+wa_delivery_duration_seconds_sum 0.0
+# HELP wa_delivery_duration_seconds_created Wall time of a downstream POST.
+# TYPE wa_delivery_duration_seconds_created gauge
+wa_delivery_duration_seconds_created 1.7862620119385622e+09
+# HELP wa_retries_total Delivery attempts rescheduled after a failure.
+# TYPE wa_retries_total counter
+wa_retries_total 0.0
+# HELP wa_retries_created Delivery attempts rescheduled after a failure.
+# TYPE wa_retries_created gauge
+wa_retries_created 1.786262011938599e+09
+# HELP wa_dead_lettered_total Events parked in the DLQ after exhausting retries.
+# TYPE wa_dead_lettered_total counter
+wa_dead_lettered_total 0.0
+# HELP wa_dead_lettered_created Events parked in the DLQ after exhausting retries.
+# TYPE wa_dead_lettered_created gauge
+wa_dead_lettered_created 1.7862620119386103e+09
+# HELP wa_reclaimed_total Entries adopted from a consumer that never acknowledged them.
+# TYPE wa_reclaimed_total counter
+wa_reclaimed_total 0.0
+# HELP wa_reclaimed_created Entries adopted from a consumer that never acknowledged them.
+# TYPE wa_reclaimed_created gauge
+wa_reclaimed_created 1.786262011938618e+09
+# HELP wa_queue_depth Entries currently in the event stream.
+# TYPE wa_queue_depth gauge
+wa_queue_depth 0.0
+# HELP wa_queue_in_flight Entries delivered to a consumer but not yet acknowledged.
+# TYPE wa_queue_in_flight gauge
+wa_queue_in_flight 0.0
+# HELP wa_queue_dead_lettered Entries currently sitting in the DLQ.
+# TYPE wa_queue_dead_lettered gauge
+wa_queue_dead_lettered 0.0
+# HELP wa_redis_errors_total Redis errors caught by the worker loop and ridden out rather than exiting.
+# TYPE wa_redis_errors_total counter
+wa_redis_errors_total 0.0
+# HELP wa_redis_errors_created Redis errors caught by the worker loop and ridden out rather than exiting.
+# TYPE wa_redis_errors_created gauge
+wa_redis_errors_created 1.7862620119386475e+09
+# HELP wa_redis_up 1 if Redis responded to the last health check, 0 otherwise.
+# TYPE wa_redis_up gauge
+wa_redis_up 1.0

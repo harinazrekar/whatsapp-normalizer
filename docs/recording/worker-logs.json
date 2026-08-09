@@ -1,0 +1,63 @@
+[
+  {
+    "ts": "2026-08-09T07:53:31+0000",
+    "level": "INFO",
+    "logger": "__main__",
+    "event": "worker_metrics_listening",
+    "port": 9100
+  },
+  {
+    "ts": "2026-08-09T07:53:31+0000",
+    "level": "INFO",
+    "logger": "__main__",
+    "event": "worker_started",
+    "consumer": "3068301df161-1",
+    "stream": "wa:events:stream",
+    "downstream": "http://host.docker.internal:8080/..."
+  },
+  {
+    "ts": "2026-08-09T07:53:49+0000",
+    "level": "INFO",
+    "logger": "__main__",
+    "event": "delivered",
+    "correlation_id": "5998078b24754a65",
+    "message_id": "wamid.HBgMOTE5ODIwMTE3NzMzFQIAEhggQTVCNkQ3RjhFOTAxMjM0",
+    "event_type": "message",
+    "retry_count": 0,
+    "status": 200
+  },
+  {
+    "ts": "2026-08-09T07:53:59+0000",
+    "level": "INFO",
+    "logger": "__main__",
+    "event": "worker_metrics_listening",
+    "port": 9100
+  },
+  {
+    "ts": "2026-08-09T07:53:59+0000",
+    "level": "INFO",
+    "logger": "__main__",
+    "event": "worker_started",
+    "consumer": "3068301df161-1",
+    "stream": "wa:events:stream",
+    "downstream": "http://host.docker.internal:8080/..."
+  },
+  {
+    "ts": "2026-08-09T07:54:15+0000",
+    "level": "INFO",
+    "logger": "__main__",
+    "event": "entries_reclaimed",
+    "count": 1
+  },
+  {
+    "ts": "2026-08-09T07:54:17+0000",
+    "level": "INFO",
+    "logger": "__main__",
+    "event": "delivered",
+    "correlation_id": "18b9da6ff66c4e97",
+    "message_id": "wamid.HBgMOTE5ODIwMTE3NzMzFQIAEhggQzdFOEY5QTBCMTIzNDU2",
+    "event_type": "message",
+    "retry_count": 0,
+    "status": 200
+  }
+]

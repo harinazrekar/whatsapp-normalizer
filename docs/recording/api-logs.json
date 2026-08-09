@@ -1,0 +1,236 @@
+[
+  {
+    "ts": "2026-08-09T07:53:32+0000",
+    "level": "INFO",
+    "logger": "app.main",
+    "event": "api_started",
+    "stream": "wa:events:stream"
+  },
+  {
+    "ts": "2026-08-09T07:53:32+0000",
+    "level": "INFO",
+    "logger": "uvicorn.error",
+    "event": "Application startup complete."
+  },
+  {
+    "ts": "2026-08-09T07:53:32+0000",
+    "level": "INFO",
+    "logger": "uvicorn.error",
+    "event": "Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)",
+    "color_message": "Uvicorn running on \u001b[1m%s://%s:%d\u001b[0m (Press CTRL+C to quit)"
+  },
+  {
+    "ts": "2026-08-09T07:53:36+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "127.0.0.1:49978 - \"GET /health HTTP/1.1\" 200",
+    "correlation_id": "25e24bfae4b44180"
+  },
+  {
+    "ts": "2026-08-09T07:53:49+0000",
+    "level": "INFO",
+    "logger": "app.main",
+    "event": "handshake_verified",
+    "correlation_id": "7bca3a311f444baf"
+  },
+  {
+    "ts": "2026-08-09T07:53:49+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:61532 - \"GET /webhook?hub.mode=subscribe&hub.verify_token=devi-capture-verify-2f9c&hub.challenge=1158201444 HTTP/1.1\" 200",
+    "correlation_id": "7bca3a311f444baf"
+  },
+  {
+    "ts": "2026-08-09T07:53:49+0000",
+    "level": "WARNING",
+    "logger": "app.main",
+    "event": "handshake_rejected",
+    "correlation_id": "0413c867594640b1",
+    "hub_mode": "subscribe"
+  },
+  {
+    "ts": "2026-08-09T07:53:49+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:61534 - \"GET /webhook?hub.mode=subscribe&hub.verify_token=guessed-it&hub.challenge=1158201444 HTTP/1.1\" 403",
+    "correlation_id": "0413c867594640b1"
+  },
+  {
+    "ts": "2026-08-09T07:53:49+0000",
+    "level": "WARNING",
+    "logger": "app.main",
+    "event": "signature_rejected",
+    "correlation_id": "79a5772800cf4b91",
+    "client": "172.21.0.1"
+  },
+  {
+    "ts": "2026-08-09T07:53:49+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:61548 - \"POST /webhook HTTP/1.1\" 403",
+    "correlation_id": "79a5772800cf4b91"
+  },
+  {
+    "ts": "2026-08-09T07:53:49+0000",
+    "level": "WARNING",
+    "logger": "app.main",
+    "event": "signature_rejected",
+    "correlation_id": "e42d555317b346c8",
+    "client": "172.21.0.1"
+  },
+  {
+    "ts": "2026-08-09T07:53:49+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:61550 - \"POST /webhook HTTP/1.1\" 403",
+    "correlation_id": "e42d555317b346c8"
+  },
+  {
+    "ts": "2026-08-09T07:53:49+0000",
+    "level": "INFO",
+    "logger": "app.main",
+    "event": "event_queued",
+    "correlation_id": "5998078b24754a65",
+    "message_id": "wamid.HBgMOTE5ODIwMTE3NzMzFQIAEhggQTVCNkQ3RjhFOTAxMjM0",
+    "event_type": "message",
+    "message_type": "text"
+  },
+  {
+    "ts": "2026-08-09T07:53:49+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:61558 - \"POST /webhook HTTP/1.1\" 200",
+    "correlation_id": "5998078b24754a65"
+  },
+  {
+    "ts": "2026-08-09T07:53:52+0000",
+    "level": "INFO",
+    "logger": "app.main",
+    "event": "duplicate_dropped",
+    "correlation_id": "1ea50d413aa342df",
+    "message_id": "wamid.HBgMOTE5ODIwMTE3NzMzFQIAEhggQTVCNkQ3RjhFOTAxMjM0",
+    "event_type": "message"
+  },
+  {
+    "ts": "2026-08-09T07:53:52+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:61564 - \"POST /webhook HTTP/1.1\" 200",
+    "correlation_id": "1ea50d413aa342df"
+  },
+  {
+    "ts": "2026-08-09T07:53:54+0000",
+    "level": "INFO",
+    "logger": "app.main",
+    "event": "event_queued",
+    "correlation_id": "18b9da6ff66c4e97",
+    "message_id": "wamid.HBgMOTE5ODIwMTE3NzMzFQIAEhggQzdFOEY5QTBCMTIzNDU2",
+    "event_type": "message",
+    "message_type": "text"
+  },
+  {
+    "ts": "2026-08-09T07:53:54+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:61574 - \"POST /webhook HTTP/1.1\" 200",
+    "correlation_id": "18b9da6ff66c4e97"
+  },
+  {
+    "ts": "2026-08-09T07:54:00+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:60696 - \"GET /stats HTTP/1.1\" 200",
+    "correlation_id": "b89faab330544e75"
+  },
+  {
+    "ts": "2026-08-09T07:54:02+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:60704 - \"GET /stats HTTP/1.1\" 200",
+    "correlation_id": "f5a0f47e9ef749a3"
+  },
+  {
+    "ts": "2026-08-09T07:54:04+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:60710 - \"GET /stats HTTP/1.1\" 200",
+    "correlation_id": "3705ffef67e946a7"
+  },
+  {
+    "ts": "2026-08-09T07:54:06+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "127.0.0.1:58026 - \"GET /health HTTP/1.1\" 200",
+    "correlation_id": "790b3ac14d594c51"
+  },
+  {
+    "ts": "2026-08-09T07:54:06+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:55264 - \"GET /stats HTTP/1.1\" 200",
+    "correlation_id": "611f1149eb724f87"
+  },
+  {
+    "ts": "2026-08-09T07:54:08+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:55266 - \"GET /stats HTTP/1.1\" 200",
+    "correlation_id": "e520e14a2a014531"
+  },
+  {
+    "ts": "2026-08-09T07:54:10+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:55276 - \"GET /stats HTTP/1.1\" 200",
+    "correlation_id": "ed3978ac448f4828"
+  },
+  {
+    "ts": "2026-08-09T07:54:12+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:55278 - \"GET /stats HTTP/1.1\" 200",
+    "correlation_id": "cf6160e7e0034d6d"
+  },
+  {
+    "ts": "2026-08-09T07:54:14+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:55286 - \"GET /stats HTTP/1.1\" 200",
+    "correlation_id": "990e29a17e894314"
+  },
+  {
+    "ts": "2026-08-09T07:54:16+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:64574 - \"GET /stats HTTP/1.1\" 200",
+    "correlation_id": "8952c4c9a84a4507"
+  },
+  {
+    "ts": "2026-08-09T07:54:18+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:64590 - \"GET /stats HTTP/1.1\" 200",
+    "correlation_id": "bedc86e8677b48af"
+  },
+  {
+    "ts": "2026-08-09T07:54:18+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:64604 - \"GET /metrics HTTP/1.1\" 200",
+    "correlation_id": "b250bdf97e0d482c"
+  },
+  {
+    "ts": "2026-08-09T07:54:18+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:64614 - \"GET /stats HTTP/1.1\" 200",
+    "correlation_id": "0ee80b272f784399"
+  },
+  {
+    "ts": "2026-08-09T07:54:18+0000",
+    "level": "INFO",
+    "logger": "uvicorn.access",
+    "event": "172.21.0.1:64624 - \"GET /health HTTP/1.1\" 200",
+    "correlation_id": "c857389750244e0f"
+  }
+]
