@@ -510,3 +510,82 @@ async def test_downstream_url_is_redacted_in_logs(monkeypatch):
 async def test_unset_downstream_url_is_reported_plainly(monkeypatch):
     monkeypatch.setattr(settings, "DOWNSTREAM_WEBHOOK_URL", "")
     assert worker._redacted_downstream() == "(unset)"
+
+
+# --- Redis resilience (post-1.0 audit regression) ---------------------------
+
+
+async def test_redis_error_in_the_loop_does_not_kill_the_worker(stream, monkeypatch):
+    """
+    redis-py 8 applies a finite socket timeout to EVERY command, not just the
+    blocking read, and `from_url` supplies no retries. Letting a TimeoutError
+    propagate exits the process; `restart: unless-stopped` then returns it to the
+    same stalled Redis. That is a restart loop that delivers nothing -- the same
+    shape as the socket_timeout bug, one layer up.
+    """
+    import redis.exceptions
+
+    monkeypatch.setattr(settings, "REDIS_ERROR_BACKOFF_SECONDS", 0)
+    monkeypatch.setattr(settings, "DOWNSTREAM_WEBHOOK_URL", "")
+
+    calls = {"n": 0}
+
+    async def flaky_reclaim(_consumer, _cursor="0-0"):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise redis.exceptions.TimeoutError("Timeout reading from socket")
+        worker.request_shutdown()
+        return [], "0-0"
+
+    monkeypatch.setattr(worker, "reclaim_stale", flaky_reclaim)
+    monkeypatch.setattr(worker.httpx, "AsyncClient", lambda **_kw: FakeClient([200]))
+
+    worker._shutdown.clear()
+    try:
+        await asyncio.wait_for(worker.run(), timeout=5)
+    finally:
+        worker._shutdown.clear()
+
+    # Survived the error and came back round for a second pass.
+    assert calls["n"] == 2
+
+
+async def test_redis_errors_are_counted(stream, monkeypatch):
+    import redis.exceptions
+
+    monkeypatch.setattr(settings, "REDIS_ERROR_BACKOFF_SECONDS", 0)
+    monkeypatch.setattr(settings, "DOWNSTREAM_WEBHOOK_URL", "")
+    before = worker.metrics.redis_errors._value.get()
+
+    async def fail_once(_consumer, _cursor="0-0"):
+        worker.request_shutdown()
+        raise redis.exceptions.ConnectionError("connection refused")
+
+    monkeypatch.setattr(worker, "reclaim_stale", fail_once)
+    monkeypatch.setattr(worker.httpx, "AsyncClient", lambda **_kw: FakeClient([200]))
+
+    worker._shutdown.clear()
+    try:
+        await asyncio.wait_for(worker.run(), timeout=5)
+    finally:
+        worker._shutdown.clear()
+
+    assert worker.metrics.redis_errors._value.get() == before + 1
+
+
+async def test_a_non_redis_error_still_propagates(stream, monkeypatch):
+    """Only Redis faults are ridden out; a genuine bug must not be swallowed."""
+    monkeypatch.setattr(settings, "DOWNSTREAM_WEBHOOK_URL", "")
+
+    async def boom(_consumer, _cursor="0-0"):
+        raise ValueError("a real bug")
+
+    monkeypatch.setattr(worker, "reclaim_stale", boom)
+    monkeypatch.setattr(worker.httpx, "AsyncClient", lambda **_kw: FakeClient([200]))
+
+    worker._shutdown.clear()
+    try:
+        with pytest.raises(ValueError, match="a real bug"):
+            await asyncio.wait_for(worker.run(), timeout=5)
+    finally:
+        worker._shutdown.clear()

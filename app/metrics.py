@@ -104,6 +104,12 @@ queue_dead_lettered = Gauge(
     registry=REGISTRY,
 )
 
+redis_errors = Counter(
+    "wa_redis_errors_total",
+    "Redis errors caught by the worker loop and ridden out rather than exiting.",
+    registry=REGISTRY,
+)
+
 redis_up = Gauge(
     "wa_redis_up",
     "1 if Redis responded to the last health check, 0 otherwise.",

@@ -211,6 +211,35 @@ async def test_peek_dlq_skips_undecodable_entries(stream, fake_redis):
     assert [e["message_id"] for e in await queue.peek_dlq()] == ["wamid.READABLE"]
 
 
+async def test_peek_dlq_returns_empty_when_xrevrange_returns_none(fake_redis, monkeypatch):
+    """
+    A DLQ that has never been written is the healthy case, and xrevrange is
+    typed as possibly returning None for it. Iterating that unguarded raised
+    TypeError -- so /dlq broke on exactly the services with nothing wrong.
+
+    fakeredis returns [] for a missing key rather than None, so the None has to
+    be forced here; a real Redis client is what makes it reachable.
+    """
+
+    async def xrevrange_none(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(fake_redis, "xrevrange", xrevrange_none)
+
+    assert await queue.peek_dlq() == []
+
+
+async def test_peek_dlq_skips_entries_with_no_fields(stream, fake_redis, monkeypatch):
+    """A field map can come back None too, and must not take the reader down."""
+
+    async def xrevrange_null_fields(*_args, **_kwargs):
+        return [("1-0", None)]
+
+    monkeypatch.setattr(fake_redis, "xrevrange", xrevrange_null_fields)
+
+    assert await queue.peek_dlq() == []
+
+
 async def test_stream_is_trimmed_to_maxlen(stream, fake_redis, monkeypatch):
     """Delivered history must not grow without bound."""
     monkeypatch.setattr(settings, "STREAM_MAXLEN", 5)

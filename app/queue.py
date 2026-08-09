@@ -21,7 +21,7 @@ import json
 from typing import Any, cast
 
 from .config import settings
-from .redis_client import get_redis
+from .redis_client import get_blocking_redis, get_redis
 
 # One entry = one field, so the payload round-trips as a single JSON blob rather
 # than a flattened field map that would lose types.
@@ -91,7 +91,9 @@ async def read_new(consumer: str) -> list[Entry]:
     # Redis feature rather than logic of ours that needs covering.
     block = settings.BLOCK_MS if settings.BLOCK_MS > 0 else None
 
-    entries = await get_redis().xreadgroup(
+    # The one command that parks on the socket by design, so it uses the client
+    # whose read timeout is derived from BLOCK_MS.
+    entries = await get_blocking_redis().xreadgroup(
         groupname=settings.CONSUMER_GROUP,
         consumername=consumer,
         streams={settings.STREAM_KEY: ">"},
