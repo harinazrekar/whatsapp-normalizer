@@ -3,7 +3,7 @@
 pytest==9.1.1
 pytest-asyncio==1.4.0
 pytest-cov==7.1.0
-fakeredis==2.37.0
+fakeredis==2.39.0
 
 # Used directly by tests/test_deployment_config.py to parse the compose files.
 # Pinned explicitly rather than relied on as a transitive dep of pre-commit: a
@@ -11,7 +11,7 @@ fakeredis==2.37.0
 PyYAML==6.0.3
 
 # Lint / format / type-check (see pyproject.toml, Makefile, .pre-commit-config.yaml)
-ruff==0.16.1
-black==26.5.1
-mypy==2.3.0
-pre-commit==4.6.1
+ruff==0.16.10
+black==26.10.0
+mypy==2.4.0
+pre-commit==4.6.2
